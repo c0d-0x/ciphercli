@@ -1,5 +1,3 @@
-from typing import List
-
 from .des_tables import (
     E_TAB,
     IP_INV,
@@ -19,7 +17,7 @@ def _sbox_lookup_eingine(chunk: int, i: int) -> int:
     return sbox[row][column]
 
 
-def _permute(block: bytes, bit_map: List, ret_bytes: int = 8) -> bytes:
+def _permute(block: bytes, bit_map: list[int], ret_bytes: int = 8) -> bytes:
     block_int = int.from_bytes(block, byteorder="big")
     block_len = len(block) * 8 - 1
     bit_map_len = len(bit_map)
@@ -42,7 +40,7 @@ def _left_shift(value: int, shift: int, bit_width: int = 28) -> int:
 
 
 # TODO: Refactor for better left_shifts
-def _key_scheduler(key: bytes) -> List[bytes]:
+def _key_scheduler(key: bytes) -> list[bytes]:
     permd_key = _permute(key, PC1_TAB, ret_bytes=7)
 
     key_int = int.from_bytes(permd_key, byteorder="big")
