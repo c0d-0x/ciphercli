@@ -19,6 +19,7 @@ def main():
 
     args = parser.parse_args()
     key: bytes = b""
+    result = b""
 
     if args.text:
         plaintext: bytes = args.text.encode()
@@ -26,31 +27,33 @@ def main():
         with open(args.infile, "rb") as f:
             plaintext = f.read()
     else:
-        parser.error("Either --text or --infile must be provided")
+        parser.error("--text or --infile must be provided")
     if args.key:
         key = args.key.encode()
     elif args.shift:
-        shift = args.shift
+        shift = int(args.shift)
+    else:
+        parser.error("key or shift most be provided")
 
-    if args.cipher == "des":
-        cipher = DesCipher()
+    if args.cipher in ("des", "aes", "hill"):
+        if args.cipher == "des":
+            cipher = DesCipher()
 
-        try:
             if len(key) != 8:
                 parser.error("Key must be 8 bytes (8 chars)")
-        except ValueError:
-            parser.error("invalid hex string")
-    # elif args.cipher == "hill":
-    #     cipher = HillCipher()
-    else:
-        parser.error(f"Unsupported cipher: {args.cipher}")
+        # elif args.cipher == "hill":
+        #     cipher = HillCipher()
+        else:
+            parser.error(f"Unsupported cipher: {args.cipher}")
 
-    result = b""
-    if args.mode == "encrypt":
-        result = cipher.encrypt(plaintext, key)
-    else:
-        ciphered = bytes.fromhex(args.text)
-        result = cipher.decrypt(ciphered, key)
+        if args.mode == "encrypt":
+            result = cipher.encrypt(plaintext, key)
+        else:
+            if not args.infile:
+                ciphered = bytes.fromhex(args.text)
+            else:
+                ciphered = plaintext
+            result = cipher.decrypt(ciphered, key)
 
     if args.outfile:
         with open(args.outfile, "wb") as f:

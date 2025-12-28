@@ -1,4 +1,4 @@
-from .des_tables import (
+from .tables import (
     E_TAB,
     IP_INV,
     IP_TAB,
@@ -19,16 +19,14 @@ def _sbox_lookup_eingine(chunk: int, i: int) -> int:
 
 def _permute(block: bytes, bit_map: list[int], ret_bytes: int = 8) -> bytes:
     block_int = int.from_bytes(block, byteorder="big")
-    block_len = len(block) * 8 - 1
-    bit_map_len = len(bit_map)
+    block_bit_len = (len(block) * 8) - 1
     result = 0
 
-    for i, bit_pos in enumerate(bit_map):
+    for bit_pos in bit_map:
         bit_index = bit_pos - 1
-        bit_value = (block_int >> block_len - bit_index) & 1
+        bit_value = (block_int >> (block_bit_len - bit_index)) & 1
 
-        out_bit_pos = bit_map_len - 1 - i
-        result |= bit_value << out_bit_pos
+        result = (result << 1) | bit_value
 
     return result.to_bytes(ret_bytes, byteorder="big")
 
@@ -44,21 +42,26 @@ def _key_scheduler(key: bytes) -> list[bytes]:
     permd_key = _permute(key, PC1_TAB, ret_bytes=7)
 
     key_int = int.from_bytes(permd_key, byteorder="big")
-    c_half = (key_int >> 28) & 0x0FFFFFFF  # cleaning up tailing bits
-    d_half = key_int & 0x0FFFFFFF
 
-    shift_schedule = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+    c_half = (key_int >> 28) & ((1 << 28) - 1)  # cleaning up tailing bits
+    d_half = key_int & ((1 << 28) - 1)
+
     sub_keys = []
 
-    for shift in shift_schedule:
-        c_half = _left_shift(c_half, shift, 28)
-        d_half = _left_shift(d_half, shift, 28)
+    for i in range(16):
+        shift = 2
+        if i + 1 in (1, 2, 9, 16):
+            shift = 1
+        c_half = _left_shift(c_half, shift)
+        d_half = _left_shift(d_half, shift)
 
         cd = (c_half << 28) | d_half
         cd_bytes = cd.to_bytes(7, byteorder="big")
 
         sub_key = _permute(cd_bytes, PC2_TAB, ret_bytes=6)
+        # print(f"sub-key{i + 1} {int.from_bytes(sub_key):048b}")
         sub_keys.append(sub_key)
+        i += 1
 
     return sub_keys
 
@@ -69,22 +72,26 @@ def _feistel(block: bytes, sub_key: bytes) -> bytes:
 
     e_block = _permute(block, E_TAB, ret_bytes=6)
 
-    # XOR with subkey
-    xored_block = bytes(e_byte ^ s_byte for e_byte, s_byte in zip(e_block, sub_key))
-    e_block_int = int.from_bytes(xored_block, byteorder="big")
+    # print(f"E(x): {int.from_bytes(e_block):048b}")
+    e_block_int = int.from_bytes(
+        bytes(e_byte ^ s_byte for e_byte, s_byte in zip(e_block, sub_key))
+    )
+
+    # print(f"E(x) XOR K: {e_block_int:048b}")
     chunks = []
 
-    # splitting 48 bit block to 8 [6bits] chunks
+    # splitting 48 bit block to 8 [6 bits] chunks
     for i in range(8):
         shift = 48 - 6 - (i * 6)
-        chunk = (e_block_int >> shift) & 0b111111
+        chunk = (e_block_int >> shift) & ((1 << 6) - 1)
         chunks.append(chunk)
 
     sbox_output = 0
-    for i in range(8):
-        value = _sbox_lookup_eingine(chunks[i], i)
+    for i, chunk in enumerate(chunks):
+        value = _sbox_lookup_eingine(chunk, i)
         sbox_output = (sbox_output << 4) | value
 
+    # print(f"S(x): {sbox_output:032b}: len=> {sbox_output.bit_length()}")
     sbox_bytes = sbox_output.to_bytes(4, byteorder="big")
 
     return _permute(sbox_bytes, P_TAB, ret_bytes=4)
@@ -110,13 +117,20 @@ class DesCipher:
         for i in range(0, len(text), chunk_size):
             chunk = text[i : i + chunk_size]
             chunk = _permute(chunk, IP_TAB, ret_bytes=8)
+            # print(f"text: {bin(int.from_bytes(chunk))}")
 
             left_half = chunk[:4]
             right_half = chunk[4:]
 
-            for round_num in range(16):
+            for round in range(16):
+                # print(f"L{j}: {int.from_bytes(left_half):032b}")
+                # print(f"R{j}: {int.from_bytes(right_half):032b}")
+
                 tmp = right_half
-                f_output = _feistel(right_half, sub_keys[round_num])
+
+                f_output = _feistel(right_half, sub_keys[round])
+                # print(f"f(R{j},k{j}): {int.from_bytes(f_output):032b}\n")
+
                 right_half = bytes(
                     l_byte ^ f_byte for l_byte, f_byte in zip(left_half, f_output)
                 )
