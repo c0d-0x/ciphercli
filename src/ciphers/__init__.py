@@ -1,7 +1,7 @@
+from .aescipher.aes import AesCipher
 from .descipher.des import DesCipher
-from .hillcipher.hill import HillCipher
 
 register = {
     "des": DesCipher,
-    "hill": HillCipher,
+    "aes": AesCipher,
 }

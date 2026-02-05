@@ -39,10 +39,11 @@ def _left_shift(value: int, shift: int, bit_width: int = 28) -> int:
 
 # TODO: Refactor for better left_shifts
 def _key_scheduler(key: bytes) -> list[bytes]:
+    print(f"key: {(int.from_bytes(key)):064b}")
     permd_key = _permute(key, PC1_TAB, ret_bytes=7)
-
     key_int = int.from_bytes(permd_key, byteorder="big")
 
+    print(f"key: {key_int:056b}")
     c_half = (key_int >> 28) & ((1 << 28) - 1)  # cleaning up tailing bits
     d_half = key_int & ((1 << 28) - 1)
 
@@ -59,7 +60,7 @@ def _key_scheduler(key: bytes) -> list[bytes]:
         cd_bytes = cd.to_bytes(7, byteorder="big")
 
         sub_key = _permute(cd_bytes, PC2_TAB, ret_bytes=6)
-        # print(f"sub-key{i + 1} {int.from_bytes(sub_key):048b}")
+        print(f"sub-key{i + 1} {int.from_bytes(sub_key):048b}")
         sub_keys.append(sub_key)
         i += 1
 
