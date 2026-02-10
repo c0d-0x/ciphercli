@@ -1,7 +1,6 @@
 import numpy as np
-from numpy._core import ndarray
+from numpy._core import ndarray, uint8
 from .tables import MIX_COL_MAT, INV_MIX_COL_MAT, SBOX, INV_SBOX, RC
-from numpy import bitwise_left_shift, uint8
 # import base64
 
 
