@@ -5,7 +5,7 @@ a lightweight command-line tool that brings classic cryptography back to life.
 ## USAGE
 
 ````bash
-usage: main.py [-h] -c {des,aes} [-t TEXT] [-i INFILE] [-o OUTFILE] [-k KEY] [-v VARIANT] [-s SHIFT] {encrypt,decrypt}
+usage: python main.py [-h] -c {des,aes} [-t TEXT] [-i INFILE] [-o OUTFILE] [-k KEY] [-v VARIANT] [-s SHIFT] {encrypt,decrypt}
 
 positional arguments:
   {encrypt,decrypt}
@@ -21,5 +21,9 @@ options:
   -k, --key KEY         Encryption key (string)
   -v, --variant VARIANT
                         Cipher variant (only fpr ciphers with multiple variants)
-  -s, --shift SHIFT     Shift value for shift ciphers (integer)```
+  -s, --shift SHIFT     Shift value for shift ciphers (integer)
 ````
+## Example
+```bash
+python main.py decrypt -t 29fcd53a1841fa573804149dc65ea89f -k 0123456789ABCDEF -c aes
+```
