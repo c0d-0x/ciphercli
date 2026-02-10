@@ -1,9 +1,7 @@
 import numpy as np
-import sys
-from sys import stderr
 from numpy._core import ndarray
 from .tables import MIX_COL_MAT, INV_MIX_COL_MAT, SBOX, INV_SBOX, RC
-from numpy import uint8
+from numpy import bitwise_left_shift, uint8
 # import base64
 
 
@@ -29,8 +27,7 @@ class AesCipher:
                 pad_len = self.AES_BLOCK_LEN - (self.AES_BLOCK_LEN % b_len)
                 block += bytes([pad_len] * pad_len)
             else:
-                print("Error: At least 16 bytes block expected", file=stderr)
-                sys.exit(1)
+                raise ValueError("At most 16 bytes block expected")
 
         for col in range(cols):
             for row in range(rows):
@@ -117,8 +114,8 @@ class AesCipher:
             Nr = self.AES_256_ROUND
             Nk = self.AES_256_WORD_COUNT
         else:
-            print("Error: Invalid key length or AES variant", file=stderr)
-            sys.exit(1)
+            print(key_len)
+            raise ValueError("Invalid key length or AES variant")
 
         # Initializing word list with the original key words
         word: list[bytes] = [
@@ -150,59 +147,81 @@ class AesCipher:
         return sub_keys
 
     def encrypt(self, block: bytes, key: bytes, variant=AES_128) -> bytes:
-        key_len = len(key)
-        if key_len not in (
+        klen = len(key)
+        blen = len(block)
+        # TODO: Validate block size and handle accordingly
+
+        if klen not in (
             self.AES_128_KEY_LEN,
             self.AES_192_KEY_LEN,
             self.AES_256_KEY_LEN,
         ):
-            return b""
+            raise ValueError("Invalid key size")
+
+        if blen % self.AES_BLOCK_LEN != 0:
+            pad_len = self.AES_BLOCK_LEN - (blen % self.AES_BLOCK_LEN)
+            block += bytes([pad_len] * pad_len)
 
         key_schedule = self._expand_key(key, variant)
         Nr = len(key_schedule)
 
-        state = self._block2state(block)
-        state = self._add_key(state, key_schedule[0])
+        ciphertext = b""
+        for j in range(0, blen, self.AES_BLOCK_LEN):
+            chunk = block[j : j + self.AES_BLOCK_LEN]
 
-        for i in range(1, Nr - 1):
+            state = self._block2state(chunk)
+            state = self._add_key(state, key_schedule[0])
+
+            for i in range(1, Nr - 1):
+                state = self._sub_byte(state, self._sbox_lookup)
+                state = self._shift_rows(state)
+                state = self._mix_column(state, mat=MIX_COL_MAT)
+                state = self._add_key(state, key_schedule[i])
+
             state = self._sub_byte(state, self._sbox_lookup)
             state = self._shift_rows(state)
-            state = self._mix_column(state, mat=MIX_COL_MAT)
-            state = self._add_key(state, key_schedule[i])
-            # print(f"KEYSCH[{i}]: {(b"".join(key_schedule[i])).hex()}")
+            state = self._add_key(state, key_schedule[Nr - 1])
 
-        state = self._sub_byte(state, self._sbox_lookup)
-        state = self._shift_rows(state)
-        state = self._add_key(state, key_schedule[Nr - 1])
-
-        # print(f"KEYSCH[{Nr -1}]: {(b"".join(key_schedule[Nr-1])).hex()}")
-        ciphered_text = bytes([uint8(b) for i in range(4) for b in state[:, i]])
-        return ciphered_text
+            ciphertext += bytes([uint8(b) for i in range(4) for b in state[:, i]])
+        return ciphertext
 
     def decrypt(self, block: bytes, key: bytes, variant=AES_128) -> bytes:
-        key_len = len(key)
-        if key_len not in (
+        klen = len(key)
+        blen = len(block)
+
+        if klen not in (
             self.AES_128_KEY_LEN,
             self.AES_192_KEY_LEN,
             self.AES_256_KEY_LEN,
         ):
-            return b""
+            raise ValueError("Invalid key size")
+
+        pad_len = 0
+        if blen % self.AES_BLOCK_LEN != 0:
+            pad_len = self.AES_BLOCK_LEN - (blen % self.AES_BLOCK_LEN)
+            block += bytes([pad_len] * pad_len)
 
         key_schedule = self._expand_key(key, variant)
         Nr = len(key_schedule)
-        state = self._block2state(block)
 
-        state = self._add_key(state, key_schedule[Nr - 1])
+        plaintext = b""
+        for j in range(0, blen, self.AES_BLOCK_LEN):
+            chunk = block[j : j + self.AES_BLOCK_LEN]
+            state = self._block2state(chunk)
 
-        for r in range(Nr - 2, 0, -1):
+            state = self._add_key(state, key_schedule[Nr - 1])
+
+            for r in range(Nr - 2, 0, -1):
+                state = self._inv_shift_rows(state)
+                state = self._sub_byte(state, self._inv_sbox_lookup)
+                state = self._add_key(state, key_schedule[r])
+                state = self._mix_column(state, INV_MIX_COL_MAT)
+
             state = self._inv_shift_rows(state)
             state = self._sub_byte(state, self._inv_sbox_lookup)
-            state = self._add_key(state, key_schedule[r])
-            state = self._mix_column(state, INV_MIX_COL_MAT)
+            state = self._add_key(state, key_schedule[0])
 
-        state = self._inv_shift_rows(state)
-        state = self._sub_byte(state, self._inv_sbox_lookup)
-        state = self._add_key(state, key_schedule[0])
-
-        plaintext = bytes([uint8(b) for i in range(4) for b in state[:, i]])
+            plaintext += bytes([uint8(b) for i in range(4) for b in state[:, i]])
+        if pad_len != 0:
+            plaintext = plaintext[:-pad_len]
         return plaintext
