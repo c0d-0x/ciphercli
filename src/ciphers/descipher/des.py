@@ -103,6 +103,9 @@ class DesCipher:
         # NOTE: Checkn and applying padding bits for text size less than 64bits (PKC#7)
         pad_len = 0
         if text_size % chunk_size != 0:
+            if decrypt:
+                raise ValueError("Invalid block size")
+
             pad_len = chunk_size - (text_size % chunk_size)
             text += bytes([pad_len] * pad_len)
 
@@ -131,8 +134,6 @@ class DesCipher:
 
             encrypted_block = _permute(combined, IP_INV, ret_bytes=8)
             ciphertext += encrypted_block
-        if decrypt and pad_len != 0:
-            ciphertext = ciphertext[:-pad_len]
 
         return ciphertext
 

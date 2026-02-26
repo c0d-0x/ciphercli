@@ -195,10 +195,8 @@ class AesCipher:
         ):
             raise ValueError("Invalid key size")
 
-        pad_len = 0
         if blen % self.AES_BLOCK_LEN != 0:
-            pad_len = self.AES_BLOCK_LEN - (blen % self.AES_BLOCK_LEN)
-            block += bytes([pad_len] * pad_len)
+            raise ValueError("Invalid block size")
 
         key_schedule = self._expand_key(key, variant)
         Nr = len(key_schedule)
@@ -221,6 +219,5 @@ class AesCipher:
             state = self._add_key(state, key_schedule[0])
 
             plaintext += bytes([uint8(b) for i in range(4) for b in state[:, i]])
-        if pad_len != 0:
-            plaintext = plaintext[:-pad_len]
+
         return plaintext
